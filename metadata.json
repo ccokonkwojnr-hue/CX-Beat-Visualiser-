@@ -1,0 +1,5 @@
+{
+  "name": "CX Beat Visualiser",
+  "description": "A web-based music visualizer using HTML5 Canvas and Web Audio API with frequency spectrum analysis.",
+  "requestFramePermissions": []
+}
