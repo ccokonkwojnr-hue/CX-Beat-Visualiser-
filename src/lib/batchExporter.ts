@@ -3,11 +3,19 @@ import { AppSettings, ImageSettings, Platform } from './types';
 import { VideoExporter } from './videoExporter';
 import { AudioAnalyzer } from './audioAnalyzer';
 
+import { ImageManager } from './imageManager';
+
 export class BatchExporter {
   private videoExporter: VideoExporter;
+  private cancelExport: boolean = false;
 
   constructor() {
     this.videoExporter = new VideoExporter();
+  }
+
+  public cancel() {
+    this.cancelExport = true;
+    this.videoExporter.cancel();
   }
 
   public async exportBatch(
@@ -15,13 +23,16 @@ export class BatchExporter {
     imageSettings: ImageSettings,
     audioFile: File,
     onProgress: (progress: number, status: string) => void,
-    renderFrameCallback: (ctx: CanvasRenderingContext2D, width: number, height: number, analyzer: AudioAnalyzer, settings: AppSettings) => void,
-    resetStateCallback: () => void
+    renderFrameCallback: (ctx: CanvasRenderingContext2D, width: number, height: number, analyzer: AudioAnalyzer, settings: AppSettings, imageManager: ImageManager) => void,
+    resetStateCallback: () => void,
+    imageManager: ImageManager
   ) {
+    this.cancelExport = false;
     const zip = new JSZip();
     const totalPlatforms = settings.batchPlatforms.length;
 
     for (let i = 0; i < totalPlatforms; i++) {
+      if (this.cancelExport) throw new Error('Export cancelled by user');
       const platform = settings.batchPlatforms[i];
       const platformSettings = { ...settings, platform };
 
@@ -39,7 +50,8 @@ export class BatchExporter {
           onProgress(overallProgress, `[${platform}] ${status}`);
         },
         renderFrameCallback,
-        resetStateCallback
+        resetStateCallback,
+        imageManager
       );
 
       zip.file(`visualizer_${platform}.mp4`, blob);

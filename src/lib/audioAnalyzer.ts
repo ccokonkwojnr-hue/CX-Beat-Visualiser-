@@ -1,7 +1,7 @@
 import { FrequencyBands } from './types';
 
 export class AudioAnalyzer {
-  private ctx: AudioContext;
+  private ctx: AudioContext | OfflineAudioContext;
   private analyser: AnalyserNode;
   private analyserLeft: AnalyserNode;
   private analyserRight: AnalyserNode;
@@ -15,6 +15,8 @@ export class AudioAnalyzer {
   private history: { kick: number[], snare: number[], bass: number[] } = { kick: [], snare: [], bass: [] };
   private lastBeatTime: number = 0;
   private minBeatInterval: number = 250; // ms
+  
+  private mockCurrentTime: number | null = null;
 
   constructor(context?: AudioContext | OfflineAudioContext) {
     if (context) {
@@ -43,6 +45,13 @@ export class AudioAnalyzer {
     this.dataArrayRight = new Uint8Array(this.analyserRight.frequencyBinCount);
   }
 
+  public setMockData(main: Uint8Array, left: Uint8Array, right: Uint8Array, currentTime: number) {
+    this.dataArray.set(main);
+    this.dataArrayLeft.set(left);
+    this.dataArrayRight.set(right);
+    this.mockCurrentTime = currentTime;
+  }
+
   public resetHistory() {
     this.history = { kick: [], snare: [], bass: [] };
     this.lastBeatTime = 0;
@@ -50,8 +59,12 @@ export class AudioAnalyzer {
 
   public connect(audioElement: HTMLAudioElement) {
     if (!this.source) {
-      this.source = this.ctx.createMediaElementSource(audioElement);
-      this.connectSource(this.source);
+      if ('createMediaElementSource' in this.ctx) {
+        this.source = this.ctx.createMediaElementSource(audioElement);
+        this.connectSource(this.source);
+      } else {
+        console.warn("createMediaElementSource is not supported on OfflineAudioContext");
+      }
     }
   }
 
@@ -77,6 +90,12 @@ export class AudioAnalyzer {
   }
 
   public getFrequencyData(channel: 'MAIN' | 'LEFT' | 'RIGHT' = 'MAIN'): Uint8Array {
+    if (this.mockCurrentTime !== null) {
+      if (channel === 'LEFT') return this.dataArrayLeft;
+      if (channel === 'RIGHT') return this.dataArrayRight;
+      return this.dataArray;
+    }
+
     if (channel === 'LEFT') {
       this.analyserLeft.getByteFrequencyData(this.dataArrayLeft);
       return this.dataArrayLeft;
@@ -149,7 +168,7 @@ export class AudioAnalyzer {
   }
 
   public detectKick(kickEnergy: number, sensitivity: number = 1.0): boolean {
-    const now = this.ctx.currentTime * 1000;
+    const now = (this.mockCurrentTime !== null ? this.mockCurrentTime : this.ctx.currentTime) * 1000;
     
     // Adaptive threshold based on recent history
     const avgKick = this.history.kick.reduce((a, b) => a + b, 0) / (this.history.kick.length || 1);
@@ -163,7 +182,7 @@ export class AudioAnalyzer {
   }
 
   public detectBass(bassEnergy: number, sensitivity: number = 1.0): boolean {
-    const now = this.ctx.currentTime * 1000;
+    const now = (this.mockCurrentTime !== null ? this.mockCurrentTime : this.ctx.currentTime) * 1000;
     
     const avgBass = this.history.bass.reduce((a, b) => a + b, 0) / (this.history.bass.length || 1);
     const dynamicThreshold = Math.max(130, avgBass * 1.2) / sensitivity;

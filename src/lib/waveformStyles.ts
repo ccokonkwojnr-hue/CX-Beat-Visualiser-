@@ -9,18 +9,19 @@ export class WaveformStyler {
     barCount: number,
     kickPulse: number,
     mirror: boolean,
-    isStereoRight: boolean = false
+    isStereoRight: boolean = false,
+    resolutionScale: number = 1.0
   ) {
-    const barWidth = (w / barCount) - 2;
-    const blockHeight = 4;
-    const blockGap = 2;
+    const barWidth = (w / barCount) - (2 * resolutionScale);
+    const blockHeight = 4 * resolutionScale;
+    const blockGap = 2 * resolutionScale;
     
     ctx.fillStyle = color;
     
     for (let i = 0; i < barCount; i++) {
-      const barX = x + i * (barWidth + 2);
+      const barX = x + i * (barWidth + (2 * resolutionScale));
       let barHeight = (bars[i] / 255) * h;
-      barHeight += kickPulse * 30 * (bars[i] / 255); 
+      barHeight += kickPulse * (30 * resolutionScale) * (bars[i] / 255); 
       
       const numBlocks = Math.floor(barHeight / (blockHeight + blockGap));
       
@@ -46,7 +47,8 @@ export class WaveformStyler {
     color: string,
     barCount: number,
     kickPulse: number,
-    mirror: boolean
+    mirror: boolean,
+    resolutionScale: number = 1.0
   ) {
     const spacing = w / barCount;
     ctx.fillStyle = color;
@@ -54,7 +56,7 @@ export class WaveformStyler {
     for (let i = 0; i < barCount; i++) {
       const dotX = x + i * spacing + spacing / 2;
       let amplitude = (bars[i] / 255);
-      const radius = Math.max(2, amplitude * (spacing / 2) + (kickPulse * amplitude * 0.1));
+      const radius = Math.max(2 * resolutionScale, amplitude * (spacing / 2) + (kickPulse * amplitude * 0.1));
       
       ctx.beginPath();
       if (mirror) {
@@ -79,13 +81,14 @@ export class WaveformStyler {
     color: string,
     barCount: number,
     kickPulse: number,
-    mirror: boolean
+    mirror: boolean,
+    resolutionScale: number = 1.0
   ) {
     const spacing = w / (barCount - 1);
     
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * resolutionScale;
     ctx.fillStyle = color + '40'; // 25% opacity
     
     // Draw top wave
@@ -146,12 +149,13 @@ export class WaveformStyler {
     color: string,
     barCount: number,
     kickPulse: number,
-    mirror: boolean
+    mirror: boolean,
+    resolutionScale: number = 1.0
   ) {
-    const barWidth = (w / barCount) - 1;
+    const barWidth = (w / barCount) - (1 * resolutionScale);
     
     for (let i = 0; i < barCount; i++) {
-      const barX = x + i * (barWidth + 1);
+      const barX = x + i * (barWidth + (1 * resolutionScale));
       let amplitude = (bars[i] / 255);
       let barHeight = amplitude * h + (kickPulse * amplitude);
       
@@ -176,11 +180,12 @@ export class WaveformStyler {
     color: string,
     barCount: number,
     kickPulse: number,
-    rotationAngle: number
+    rotationAngle: number,
+    resolutionScale: number = 1.0
   ) {
     const cx = x + w / 2;
     const cy = y + h / 2;
-    const radius = Math.min(w, h) * 0.2 + kickPulse * 0.5;
+    const radius = Math.min(w, h) * 0.2 + kickPulse * (0.5 * resolutionScale);
     const maxBarHeight = Math.min(w, h) * 0.3;
     
     ctx.save();
@@ -189,7 +194,7 @@ export class WaveformStyler {
     
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * resolutionScale;
     
     // Draw center circle
     ctx.beginPath();
@@ -207,7 +212,7 @@ export class WaveformStyler {
       ctx.rotate(angle);
       
       // Draw bar outward
-      ctx.fillRect(-2, radius, 4, barHeight);
+      ctx.fillRect(-2 * resolutionScale, radius, 4 * resolutionScale, barHeight);
       
       ctx.restore();
     }
@@ -223,15 +228,16 @@ export class WaveformStyler {
     barCount: number,
     kickPulse: number,
     time: number,
-    mirror: boolean
+    mirror: boolean,
+    resolutionScale: number = 1.0
   ) {
     const spacing = w / (barCount - 1);
     
     ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.shadowBlur = 15;
+    ctx.lineWidth = 4 * resolutionScale;
+    ctx.shadowBlur = 15 * resolutionScale;
     ctx.shadowColor = color;
     
     const drawLine = (isBottom: boolean) => {
@@ -241,21 +247,21 @@ export class WaveformStyler {
         let amplitude = (bars[i] / 255);
         
         // Add sine wave oscillation based on time
-        const osc = Math.sin(time * 0.005 + i * 0.2) * amplitude * 20;
+        const osc = Math.sin(time * 0.005 + i * 0.2) * amplitude * (20 * resolutionScale);
         
-        let lineY = y + h / 2 - amplitude * (h / 2) - osc - (kickPulse * amplitude * 0.5);
+        let lineY = y + h / 2 - amplitude * (h / 2) - osc - (kickPulse * amplitude * (0.5 * resolutionScale));
         if (isBottom) {
-          lineY = y + h / 2 + amplitude * (h / 2) + osc + (kickPulse * amplitude * 0.5);
+          lineY = y + h / 2 + amplitude * (h / 2) + osc + (kickPulse * amplitude * (0.5 * resolutionScale));
         }
         
         if (i === 0) ctx.moveTo(lineX, lineY);
         else {
           const prevX = x + (i - 1) * spacing;
           let prevAmp = (bars[i-1] / 255);
-          const prevOsc = Math.sin(time * 0.005 + (i-1) * 0.2) * prevAmp * 20;
-          let prevY = y + h / 2 - prevAmp * (h / 2) - prevOsc - (kickPulse * prevAmp * 0.5);
+          const prevOsc = Math.sin(time * 0.005 + (i-1) * 0.2) * prevAmp * (20 * resolutionScale);
+          let prevY = y + h / 2 - prevAmp * (h / 2) - prevOsc - (kickPulse * prevAmp * (0.5 * resolutionScale));
           if (isBottom) {
-            prevY = y + h / 2 + prevAmp * (h / 2) + prevOsc + (kickPulse * prevAmp * 0.5);
+            prevY = y + h / 2 + prevAmp * (h / 2) + prevOsc + (kickPulse * prevAmp * (0.5 * resolutionScale));
           }
           
           const cpX = (prevX + lineX) / 2;

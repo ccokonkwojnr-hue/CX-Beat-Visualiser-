@@ -398,6 +398,7 @@ export function CustomizationPanel({ settings, onChange, onUndo, onRedo, canUndo
               <option value="60">1m</option>
               <option value="120">2m</option>
               <option value="180">3m</option>
+              <option value="0">Full Song</option>
             </select>
           </div>
           <div className="flex items-center justify-between">
@@ -410,6 +411,18 @@ export function CustomizationPanel({ settings, onChange, onUndo, onRedo, canUndo
               <option value="24">24 fps</option>
               <option value="30">30 fps</option>
               <option value="60">60 fps</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Resolution</span>
+            <select 
+              value={settings.resolution} 
+              onChange={e => update('resolution', e.target.value as any)}
+              className="bg-[#0A0A0C] border border-[#2A2B30] rounded px-2 py-1 text-white"
+            >
+              <option value="4K">4K (High Quality)</option>
+              <option value="1080p">1080p (Standard)</option>
+              <option value="720p">720p (Fast Export)</option>
             </select>
           </div>
 

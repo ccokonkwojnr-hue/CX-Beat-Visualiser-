@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   particles: false,
   duration: 15,
   frameRate: 30,
+  resolution: '1080p',
   platform: 'YOUTUBE',
   batchPlatforms: [],
   glowEffect: true,
@@ -228,6 +229,13 @@ export default function App() {
 
     const onPlay = () => {
       setIsPlaying(true);
+      if (!analyzerRef.current) {
+        analyzerRef.current = new AudioAnalyzer();
+      }
+      if (audioRef.current) {
+        analyzerRef.current.connect(audioRef.current);
+      }
+      analyzerRef.current.resume();
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       renderFrame();
     };
@@ -281,7 +289,8 @@ export default function App() {
     width: number,
     height: number,
     analyzer: AudioAnalyzer | null,
-    currentSettings: AppSettings
+    currentSettings: AppSettings,
+    imageManager: ImageManager
   ) => {
     const template = FrameTemplate.getTemplate(currentSettings.platform);
 
@@ -321,7 +330,8 @@ export default function App() {
       const totalBounce = beatGlowRef.current + (snareIntensity * 0.5);
       bounceScale = 1.0 + (totalBounce * 0.1 * currentSettings.imageBounceIntensity);
     }
-    imageManagerRef.current.overlayImage(ctx, width, height, bounceScale);
+    const resolutionScale = width / template.width;
+    imageManager.overlayImage(ctx, width, height, bounceScale, resolutionScale);
 
     timeRef.current += 1;
     if (currentSettings.circularRotation) {
@@ -384,11 +394,16 @@ export default function App() {
       ctx.globalAlpha = alpha;
       
       if (currentSettings.glowEffect) {
-        ctx.shadowBlur = 20 + (beatGlowRef.current * 30) + (snareIntensity * 10);
+        ctx.shadowBlur = (20 + (beatGlowRef.current * 30) + (snareIntensity * 10)) * resolutionScale;
         ctx.shadowColor = color;
       }
 
-      let area = { ...template.waveformArea };
+      let area = {
+        x: template.waveformArea.x * resolutionScale,
+        y: template.waveformArea.y * resolutionScale,
+        width: template.waveformArea.width * resolutionScale,
+        height: template.waveformArea.height * resolutionScale
+      };
       
       // Apply Transform
       const cx = area.x + area.width / 2;
@@ -401,29 +416,29 @@ export default function App() {
       if (currentSettings.stereoMode) {
         area = {
           ...area,
-          width: area.width / 2 - 20,
-          x: isRightChannel ? area.x + area.width / 2 + 10 : area.x
+          width: area.width / 2 - (20 * resolutionScale),
+          x: isRightChannel ? area.x + area.width / 2 + (10 * resolutionScale) : area.x
         };
       }
 
       switch (currentSettings.waveformStyle) {
         case 'BARS':
-          WaveformStyler.drawBars(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform, isRightChannel);
+          WaveformStyler.drawBars(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform, isRightChannel, resolutionScale);
           break;
         case 'DOTS':
-          WaveformStyler.drawDots(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform);
+          WaveformStyler.drawDots(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform, resolutionScale);
           break;
         case 'WAVES':
-          WaveformStyler.drawWaves(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform);
+          WaveformStyler.drawWaves(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform, resolutionScale);
           break;
         case 'SPECTRUM':
-          WaveformStyler.drawSpectrum(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform);
+          WaveformStyler.drawSpectrum(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, currentSettings.mirrorWaveform, resolutionScale);
           break;
         case 'CIRCULAR':
-          WaveformStyler.drawCircular(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, rotationAngleRef.current);
+          WaveformStyler.drawCircular(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, rotationAngleRef.current, resolutionScale);
           break;
         case 'ANIMATED_LINE':
-          WaveformStyler.drawAnimatedLine(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, timeRef.current, currentSettings.mirrorWaveform);
+          WaveformStyler.drawAnimatedLine(ctx, area.x, area.y, area.width, area.height, data, color, currentSettings.barCount, beatGlowRef.current, timeRef.current, currentSettings.mirrorWaveform, resolutionScale);
           break;
       }
       ctx.restore();
@@ -450,9 +465,10 @@ export default function App() {
         currentSettings.songName,
         currentSettings.artistName,
         currentSettings.metadataPosition,
-        currentSettings.metadataFontSize,
+        currentSettings.metadataFontSize * resolutionScale,
         currentSettings.primaryColor,
-        currentSettings.metadataFont
+        currentSettings.metadataFont,
+        resolutionScale
       );
     }
 
@@ -462,21 +478,22 @@ export default function App() {
       width,
       height,
       currentSettings,
-      beatGlowRef.current + (snareIntensity * 0.5)
+      beatGlowRef.current + (snareIntensity * 0.5),
+      resolutionScale
     );
 
     // HUD
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.font = `${12 * resolutionScale}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'left';
     
-    ctx.fillText(`BASS  [0-200Hz] : ${Math.round(bands.bass).toString().padStart(3, '0')}`, 20, 30);
-    ctx.fillText(`KICK  [50-100Hz]: ${Math.round(bands.kick).toString().padStart(3, '0')}`, 20, 50);
-    ctx.fillText(`SNARE [2-5kHz]  : ${Math.round(bands.snare).toString().padStart(3, '0')}`, 20, 70);
+    ctx.fillText(`BASS  [0-200Hz] : ${Math.round(bands.bass).toString().padStart(3, '0')}`, 20 * resolutionScale, 30 * resolutionScale);
+    ctx.fillText(`KICK  [50-100Hz]: ${Math.round(bands.kick).toString().padStart(3, '0')}`, 20 * resolutionScale, 50 * resolutionScale);
+    ctx.fillText(`SNARE [2-5kHz]  : ${Math.round(bands.snare).toString().padStart(3, '0')}`, 20 * resolutionScale, 70 * resolutionScale);
     
     if (beatGlowRef.current > 0.1) {
       ctx.fillStyle = `rgba(255, 68, 68, ${beatGlowRef.current})`;
-      ctx.fillText('> BEAT DETECTED', 20, 95);
+      ctx.fillText('> BEAT DETECTED', 20 * resolutionScale, 95 * resolutionScale);
     }
   };
 
@@ -496,7 +513,7 @@ export default function App() {
       canvas.height = template.height;
     }
 
-    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings);
+    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings, imageManagerRef.current);
     
     animationRef.current = requestAnimationFrame(renderFrame);
   };
@@ -517,7 +534,7 @@ export default function App() {
       canvas.height = template.height;
     }
 
-    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings);
+    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings, imageManagerRef.current);
   };
 
   useEffect(() => {
@@ -547,7 +564,8 @@ export default function App() {
           audioFile,
           (progress, status) => setExportProgress({ progress, status }),
           drawVisualizationFrame,
-          resetVisualizationState
+          resetVisualizationState,
+          imageManagerRef.current
         );
       } else {
         blob = await videoExporterRef.current.exportTo4K(
@@ -556,7 +574,8 @@ export default function App() {
           audioFile,
           (progress, status) => setExportProgress({ progress, status }),
           drawVisualizationFrame,
-          resetVisualizationState
+          resetVisualizationState,
+          imageManagerRef.current
         );
       }
       
@@ -566,11 +585,16 @@ export default function App() {
       a.download = settings.batchPlatforms.length > 0 ? 'visualizer_batch.zip' : `visualizer_${settings.platform}.mp4`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Export failed. Check console for details.');
+    } catch (error: any) {
+      if (error.message === 'Export cancelled by user') {
+        console.log('Export cancelled');
+      } else {
+        console.error('Export failed:', error);
+        alert('Export failed. Check console for details.');
+      }
     } finally {
       setExportProgress(null);
+      resetVisualizationState();
     }
   };
 
@@ -615,8 +639,8 @@ export default function App() {
 
           {/* Export Overlay */}
           {exportProgress && (
-            <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
-              <div className="bg-[#151619] p-8 rounded-xl border border-[#2A2B30] w-96 max-w-[90%]">
+            <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+              <div className="bg-[#151619] p-8 rounded-xl border border-[#2A2B30] w-96 max-w-[90%] flex flex-col items-center">
                 <h3 className="text-lg font-bold mb-4 tracking-widest text-center">EXPORTING VIDEO</h3>
                 <div className="w-full bg-[#0A0A0C] h-4 rounded-full overflow-hidden mb-2 border border-[#2A2B30]">
                   <div 
@@ -624,10 +648,27 @@ export default function App() {
                     style={{ width: `${exportProgress.progress}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-[#8E9299] tracking-wider">
+                <div className="flex justify-between text-xs text-[#8E9299] tracking-wider w-full mb-6">
                   <span>{exportProgress.status}</span>
                   <span>{Math.round(exportProgress.progress)}%</span>
                 </div>
+                
+                <button 
+                  onClick={() => {
+                    if (settings.batchPlatforms.length > 0) {
+                      batchExporterRef.current.cancel();
+                    } else {
+                      videoExporterRef.current.cancel();
+                    }
+                    setExportProgress(null);
+                  }}
+                  className="px-6 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded hover:bg-red-500/30 transition-colors text-sm font-bold tracking-wider"
+                >
+                  CANCEL EXPORT
+                </button>
+              </div>
+              <div className="mt-8 text-yellow-500 font-bold tracking-widest text-sm animate-pulse flex items-center gap-2 bg-yellow-500/10 px-6 py-3 rounded-full border border-yellow-500/20">
+                <span className="text-xl">⚠️</span> DO NOT MINIMIZE WINDOW OR SWITCH TABS DURING EXPORT
               </div>
             </div>
           )}

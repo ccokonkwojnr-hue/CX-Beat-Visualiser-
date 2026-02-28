@@ -38,9 +38,17 @@ export interface AppSettings {
   
   duration: number;
   frameRate: number;
+  resolution: '4K' | '1080p' | '720p';
   platform: Platform;
   batchPlatforms: Platform[];
   glowEffect: boolean;
+}
+
+export interface ExportState {
+  isExporting: boolean;
+  progress: number;
+  status: string;
+  isCancelled: boolean;
 }
 
 export interface ImageSettings {

@@ -23,7 +23,8 @@ export class ParticleSystem {
     width: number, 
     height: number, 
     settings: AppSettings, 
-    beatIntensity: number
+    beatIntensity: number,
+    resolutionScale: number = 1.0
   ) {
     if (!settings.particles) return;
 
@@ -32,13 +33,13 @@ export class ParticleSystem {
       const count = Math.floor(beatIntensity * 10);
       for (let i = 0; i < count; i++) {
         this.particles.push({
-          x: width / 2 + (Math.random() - 0.5) * 100,
-          y: height / 2 + (Math.random() - 0.5) * 100,
-          vx: (Math.random() - 0.5) * 15 * beatIntensity,
-          vy: (Math.random() - 0.5) * 15 * beatIntensity,
+          x: width / 2 + (Math.random() - 0.5) * 100 * resolutionScale,
+          y: height / 2 + (Math.random() - 0.5) * 100 * resolutionScale,
+          vx: (Math.random() - 0.5) * 15 * beatIntensity * resolutionScale,
+          vy: (Math.random() - 0.5) * 15 * beatIntensity * resolutionScale,
           life: 1.0,
           maxLife: 1.0 + Math.random() * 0.5,
-          size: Math.random() * 4 + 1,
+          size: (Math.random() * 4 + 1) * resolutionScale,
           color: Math.random() > 0.5 ? settings.primaryColor : settings.secondaryColor
         });
       }

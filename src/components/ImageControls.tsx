@@ -56,7 +56,7 @@ export function ImageControls({ settings, onChange }: Props) {
             <div className="flex items-center gap-2">
               <span>X Offset</span>
               <input 
-                type="range" min="-1000" max="1000" step="10" 
+                type="range" min="-100" max="100" step="1" 
                 value={settings.x} 
                 onChange={e => update('x', parseInt(e.target.value))}
                 onDoubleClick={() => update('x', 0)}
@@ -67,7 +67,7 @@ export function ImageControls({ settings, onChange }: Props) {
             <div className="flex items-center gap-2">
               <span>Y Offset</span>
               <input 
-                type="range" min="-1000" max="1000" step="10" 
+                type="range" min="-100" max="100" step="1" 
                 value={settings.y} 
                 onChange={e => update('y', parseInt(e.target.value))}
                 onDoubleClick={() => update('y', 0)}

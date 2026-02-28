@@ -91,7 +91,8 @@ export class MetadataManager {
     position: 'TL' | 'TR' | 'BL' | 'BR',
     fontSize: number,
     color: string,
-    fontFamily: string = '"Inter", sans-serif'
+    fontFamily: string = '"Inter", sans-serif',
+    resolutionScale: number = 1.0
   ) {
     ctx.save();
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
@@ -101,7 +102,7 @@ export class MetadataManager {
     const text = artist !== 'Unknown Artist' ? `${title} - ${artist}` : title;
     const metrics = ctx.measureText(text);
     const textWidth = metrics.width;
-    const padding = 40;
+    const padding = 40 * resolutionScale;
 
     let x = padding;
     let y = padding;
@@ -131,7 +132,7 @@ export class MetadataManager {
 
     // Draw semi-transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    const bgPadding = 15;
+    const bgPadding = 15 * resolutionScale;
     if (ctx.textAlign === 'left') {
       ctx.fillRect(x - bgPadding, y - bgPadding, textWidth + bgPadding * 2, fontSize + bgPadding * 2);
     } else {
