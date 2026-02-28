@@ -20,10 +20,14 @@ export class ImageManager {
     });
   }
 
-  public updateSettings(settings: ImageSettings) {
+  public async updateSettings(settings: ImageSettings): Promise<void> {
     this.imageSettings = settings;
-    if (settings.url && (!this.imageElement || this.imageElement.src !== settings.url)) {
-      this.loadImage(settings.url);
+    if (settings.url) {
+      if (!this.imageElement || this.imageElement.src !== settings.url) {
+        await this.loadImage(settings.url);
+      }
+    } else {
+      this.imageElement = null;
     }
   }
 

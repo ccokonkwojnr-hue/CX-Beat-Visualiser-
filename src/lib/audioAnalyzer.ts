@@ -16,9 +16,13 @@ export class AudioAnalyzer {
   private lastBeatTime: number = 0;
   private minBeatInterval: number = 250; // ms
 
-  constructor() {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    this.ctx = new AudioContextClass();
+  constructor(context?: AudioContext | OfflineAudioContext) {
+    if (context) {
+      this.ctx = context;
+    } else {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      this.ctx = new AudioContextClass();
+    }
     
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
@@ -39,19 +43,27 @@ export class AudioAnalyzer {
     this.dataArrayRight = new Uint8Array(this.analyserRight.frequencyBinCount);
   }
 
+  public resetHistory() {
+    this.history = { kick: [], snare: [], bass: [] };
+    this.lastBeatTime = 0;
+  }
+
   public connect(audioElement: HTMLAudioElement) {
     if (!this.source) {
       this.source = this.ctx.createMediaElementSource(audioElement);
-      
-      // Main mix
-      this.source.connect(this.analyser);
-      this.analyser.connect(this.ctx.destination);
-      
-      // Stereo split
-      this.source.connect(this.splitter);
-      this.splitter.connect(this.analyserLeft, 0);
-      this.splitter.connect(this.analyserRight, 1);
+      this.connectSource(this.source);
     }
+  }
+
+  public connectSource(sourceNode: AudioNode) {
+    // Main mix
+    sourceNode.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+    
+    // Stereo split
+    sourceNode.connect(this.splitter);
+    this.splitter.connect(this.analyserLeft, 0);
+    this.splitter.connect(this.analyserRight, 1);
   }
 
   public async resume() {
@@ -137,7 +149,7 @@ export class AudioAnalyzer {
   }
 
   public detectKick(kickEnergy: number, sensitivity: number = 1.0): boolean {
-    const now = Date.now();
+    const now = this.ctx.currentTime * 1000;
     
     // Adaptive threshold based on recent history
     const avgKick = this.history.kick.reduce((a, b) => a + b, 0) / (this.history.kick.length || 1);
@@ -151,7 +163,7 @@ export class AudioAnalyzer {
   }
 
   public detectBass(bassEnergy: number, sensitivity: number = 1.0): boolean {
-    const now = Date.now();
+    const now = this.ctx.currentTime * 1000;
     
     const avgBass = this.history.bass.reduce((a, b) => a + b, 0) / (this.history.bass.length || 1);
     const dynamicThreshold = Math.max(130, avgBass * 1.2) / sensitivity;

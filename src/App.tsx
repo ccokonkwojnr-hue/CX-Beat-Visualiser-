@@ -99,8 +99,12 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
-    imageManagerRef.current.updateSettings(imageSettings);
-  }, [imageSettings]);
+    imageManagerRef.current.updateSettings(imageSettings).then(() => {
+      if (!isPlaying) {
+        drawStaticFrame();
+      }
+    });
+  }, [imageSettings, isPlaying]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -130,16 +134,30 @@ export default function App() {
     };
   }, []);
 
+  const pushStateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleSettingsChange = (newSettings: AppSettings) => {
     setSettings(newSettings);
-    undoRedoManagerRef.current.pushState(newSettings, imageSettings);
-    updateUndoRedoState();
+    
+    if (pushStateTimeoutRef.current) {
+      clearTimeout(pushStateTimeoutRef.current);
+    }
+    pushStateTimeoutRef.current = setTimeout(() => {
+      undoRedoManagerRef.current.pushState(newSettings, imageSettings);
+      updateUndoRedoState();
+    }, 500);
   };
 
   const handleImageSettingsChange = (newImageSettings: ImageSettings) => {
     setImageSettings(newImageSettings);
-    undoRedoManagerRef.current.pushState(settings, newImageSettings);
-    updateUndoRedoState();
+    
+    if (pushStateTimeoutRef.current) {
+      clearTimeout(pushStateTimeoutRef.current);
+    }
+    pushStateTimeoutRef.current = setTimeout(() => {
+      undoRedoManagerRef.current.pushState(settings, newImageSettings);
+      updateUndoRedoState();
+    }, 500);
   };
 
   const handleUndo = () => {
@@ -247,41 +265,49 @@ export default function App() {
     }
   };
 
-  const renderFrame = () => {
-    if (!analyzerRef.current || !canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const currentSettings = settingsRef.current;
-    const template = FrameTemplate.getTemplate(currentSettings.platform);
-    
-    // Resize canvas if needed
-    if (canvas.width !== template.width || canvas.height !== template.height) {
-      canvas.width = template.width;
-      canvas.height = template.height;
-      if (currentSettings.is3D) {
-        threeVisualizerRef.current.resize(template.width, template.height);
-      }
+  const resetVisualizationState = () => {
+    smoothedBarsRef.current = [];
+    beatGlowRef.current = 0;
+    rotationAngleRef.current = 0;
+    timeRef.current = 0;
+    if (analyzerRef.current) {
+      analyzerRef.current.resetHistory();
     }
+    particleSystemRef.current.reset();
+  };
+
+  const drawVisualizationFrame = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    analyzer: AudioAnalyzer | null,
+    currentSettings: AppSettings
+  ) => {
+    const template = FrameTemplate.getTemplate(currentSettings.platform);
 
     // Clear background
     ctx.fillStyle = currentSettings.bgColor;
-    ctx.fillRect(0, 0, template.width, template.height);
+    ctx.fillRect(0, 0, width, height);
 
-    // Update frequency data
-    analyzerRef.current.getFrequencyData('MAIN');
-    if (currentSettings.stereoMode) {
-      analyzerRef.current.getFrequencyData('LEFT');
-      analyzerRef.current.getFrequencyData('RIGHT');
+    let bands = { kick: 0, snare: 0, bass: 0 };
+    let isKick = false;
+    let isBass = false;
+    let snareIntensity = 0;
+
+    if (analyzer) {
+      // Update frequency data
+      analyzer.getFrequencyData('MAIN');
+      if (currentSettings.stereoMode) {
+        analyzer.getFrequencyData('LEFT');
+        analyzer.getFrequencyData('RIGHT');
+      }
+
+      // Audio Analysis
+      bands = analyzer.getFrequencyBands();
+      isKick = analyzer.detectKick(bands.kick, currentSettings.sensitivity);
+      isBass = analyzer.detectBass(bands.bass, currentSettings.sensitivity);
+      snareIntensity = analyzer.detectSnare(bands.snare, currentSettings.sensitivity);
     }
-
-    // Audio Analysis
-    const bands = analyzerRef.current.getFrequencyBands();
-    const isKick = analyzerRef.current.detectKick(bands.kick, currentSettings.sensitivity);
-    const isBass = analyzerRef.current.detectBass(bands.bass, currentSettings.sensitivity);
-    const snareIntensity = analyzerRef.current.detectSnare(bands.snare, currentSettings.sensitivity);
 
     if (isKick || isBass || snareIntensity > 0.5) {
       beatGlowRef.current = 1.0;
@@ -292,11 +318,10 @@ export default function App() {
     // Draw Image Overlay
     let bounceScale = 1.0;
     if (currentSettings.imageBounce) {
-      // Add snare intensity to the bounce scale for extra responsiveness
       const totalBounce = beatGlowRef.current + (snareIntensity * 0.5);
       bounceScale = 1.0 + (totalBounce * 0.1 * currentSettings.imageBounceIntensity);
     }
-    imageManagerRef.current.overlayImage(ctx, template.width, template.height, bounceScale);
+    imageManagerRef.current.overlayImage(ctx, width, height, bounceScale);
 
     timeRef.current += 1;
     if (currentSettings.circularRotation) {
@@ -308,11 +333,18 @@ export default function App() {
     let rawBars: Float32Array;
     let rawBarsRight: Float32Array | null = null;
 
-    if (currentSettings.stereoMode) {
-      rawBars = analyzerRef.current.getLogarithmicBands(currentSettings.barCount, 'LEFT');
-      rawBarsRight = analyzerRef.current.getLogarithmicBands(currentSettings.barCount, 'RIGHT');
+    if (analyzer) {
+      if (currentSettings.stereoMode) {
+        rawBars = analyzer.getLogarithmicBands(currentSettings.barCount, 'LEFT');
+        rawBarsRight = analyzer.getLogarithmicBands(currentSettings.barCount, 'RIGHT');
+      } else {
+        rawBars = analyzer.getLogarithmicBands(currentSettings.barCount, 'MAIN');
+      }
     } else {
-      rawBars = analyzerRef.current.getLogarithmicBands(currentSettings.barCount, 'MAIN');
+      rawBars = new Float32Array(currentSettings.barCount);
+      if (currentSettings.stereoMode) {
+        rawBarsRight = new Float32Array(currentSettings.barCount);
+      }
     }
 
     // Initialize smoothing arrays
@@ -363,8 +395,8 @@ export default function App() {
       const cy = area.y + area.height / 2;
       area.width *= currentSettings.waveformScale;
       area.height *= currentSettings.waveformScale;
-      area.x = cx - area.width / 2 + (template.width * (currentSettings.waveformOffsetX / 100));
-      area.y = cy - area.height / 2 + (template.height * (currentSettings.waveformOffsetY / 100));
+      area.x = cx - area.width / 2 + (width * (currentSettings.waveformOffsetX / 100));
+      area.y = cy - area.height / 2 + (height * (currentSettings.waveformOffsetY / 100));
       
       if (currentSettings.stereoMode) {
         area = {
@@ -413,8 +445,8 @@ export default function App() {
     if (currentSettings.showMetadata) {
       MetadataManager.drawMetadata(
         ctx,
-        template.width,
-        template.height,
+        width,
+        height,
         currentSettings.songName,
         currentSettings.artistName,
         currentSettings.metadataPosition,
@@ -427,8 +459,8 @@ export default function App() {
     // Particles
     particleSystemRef.current.updateAndDraw(
       ctx,
-      template.width,
-      template.height,
+      width,
+      height,
       currentSettings,
       beatGlowRef.current + (snareIntensity * 0.5)
     );
@@ -446,12 +478,62 @@ export default function App() {
       ctx.fillStyle = `rgba(255, 68, 68, ${beatGlowRef.current})`;
       ctx.fillText('> BEAT DETECTED', 20, 95);
     }
+  };
+
+  const renderFrame = () => {
+    if (!analyzerRef.current || !canvasRef.current || !audioRef.current || audioRef.current.paused) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const currentSettings = settingsRef.current;
+    const template = FrameTemplate.getTemplate(currentSettings.platform);
+    
+    // Resize canvas if needed
+    if (canvas.width !== template.width || canvas.height !== template.height) {
+      canvas.width = template.width;
+      canvas.height = template.height;
+    }
+
+    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings);
     
     animationRef.current = requestAnimationFrame(renderFrame);
   };
 
+  const drawStaticFrame = () => {
+    if (!canvasRef.current || isPlaying) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const currentSettings = settingsRef.current;
+    const template = FrameTemplate.getTemplate(currentSettings.platform);
+    
+    // Resize canvas if needed
+    if (canvas.width !== template.width || canvas.height !== template.height) {
+      canvas.width = template.width;
+      canvas.height = template.height;
+    }
+
+    drawVisualizationFrame(ctx, template.width, template.height, analyzerRef.current, currentSettings);
+  };
+
+  useEffect(() => {
+    if (!isPlaying) {
+      drawStaticFrame();
+    }
+  }, [settings, isPlaying]);
+
   const handleExport = async () => {
     if (!audioFile) return;
+    
+    // Pause playback before exporting to prevent state conflicts
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
     
     try {
       setExportProgress({ progress: 0, status: 'Initializing export...' });
@@ -463,14 +545,18 @@ export default function App() {
           settings,
           imageSettings,
           audioFile,
-          (progress, status) => setExportProgress({ progress, status })
+          (progress, status) => setExportProgress({ progress, status }),
+          drawVisualizationFrame,
+          resetVisualizationState
         );
       } else {
         blob = await videoExporterRef.current.exportTo4K(
           settings,
           imageSettings,
           audioFile,
-          (progress, status) => setExportProgress({ progress, status })
+          (progress, status) => setExportProgress({ progress, status }),
+          drawVisualizationFrame,
+          resetVisualizationState
         );
       }
       

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ImageSettings } from '../lib/types';
-import { Upload, Image as ImageIcon } from 'lucide-react';
+import { Upload, Image as ImageIcon, X } from 'lucide-react';
 
 interface Props {
   settings: ImageSettings;
@@ -21,12 +21,17 @@ export function ImageControls({ settings, onChange }: Props) {
     }
   };
 
+  const handleRemoveImage = () => {
+    if (settings.url) URL.revokeObjectURL(settings.url);
+    onChange({ ...settings, file: null, url: '' });
+  };
+
   return (
     <div className="bg-[#151619] border-t border-[#2A2B30] p-4 text-xs text-[#8E9299]">
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 px-4 py-2 bg-[#2A2B30] hover:bg-[#3A3B40] text-[#FFFFFF] rounded-md cursor-pointer transition-colors tracking-wider border border-[#3A3B40]">
           <ImageIcon size={16} />
-          <span>OVERLAY IMAGE</span>
+          <span>{settings.url ? 'CHANGE IMAGE' : 'OVERLAY IMAGE'}</span>
           <input 
             type="file" 
             accept="image/png,image/jpeg,image/webp" 
@@ -79,6 +84,13 @@ export function ImageControls({ settings, onChange }: Props) {
               />
               <span>Shadow</span>
             </label>
+            <button 
+              onClick={handleRemoveImage}
+              className="p-2 hover:bg-[#2A2B30] rounded-md text-[#FF4444] transition-colors"
+              title="Remove Image"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
       </div>

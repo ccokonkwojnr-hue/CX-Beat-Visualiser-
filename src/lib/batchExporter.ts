@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { AppSettings, ImageSettings, Platform } from './types';
 import { VideoExporter } from './videoExporter';
+import { AudioAnalyzer } from './audioAnalyzer';
 
 export class BatchExporter {
   private videoExporter: VideoExporter;
@@ -13,7 +14,9 @@ export class BatchExporter {
     settings: AppSettings,
     imageSettings: ImageSettings,
     audioFile: File,
-    onProgress: (progress: number, status: string) => void
+    onProgress: (progress: number, status: string) => void,
+    renderFrameCallback: (ctx: CanvasRenderingContext2D, width: number, height: number, analyzer: AudioAnalyzer, settings: AppSettings) => void,
+    resetStateCallback: () => void
   ) {
     const zip = new JSZip();
     const totalPlatforms = settings.batchPlatforms.length;
@@ -34,7 +37,9 @@ export class BatchExporter {
         (progress, status) => {
           const overallProgress = ((i + progress / 100) / totalPlatforms) * 100;
           onProgress(overallProgress, `[${platform}] ${status}`);
-        }
+        },
+        renderFrameCallback,
+        resetStateCallback
       );
 
       zip.file(`visualizer_${platform}.mp4`, blob);

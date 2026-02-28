@@ -14,6 +14,10 @@ interface Particle {
 export class ParticleSystem {
   private particles: Particle[] = [];
   
+  public reset() {
+    this.particles = [];
+  }
+  
   public updateAndDraw(
     ctx: CanvasRenderingContext2D, 
     width: number, 
